@@ -1,0 +1,52 @@
+\documentclass[AER]{AEA}
+\usepackage{amsmath}
+\usepackage{graphicx}
+\usepackage{harvard}
+\draftSpacing{1.5}
+
+\begin{document}
+
+\title{Temporal Fusion Transformer Models for Predicting Stock Behavior}
+\shortTitle{TFT Stock Behavior Prediction}
+\author{Andrew Lys\thanks{Lys: University of Chicago, andrewlys@uchicago.edu}}
+\date{\today}
+\pubMonth{3}
+\pubYear{2025}
+\JEL{}
+\Keywords{}
+
+\begin{abstract}
+Your abstract here.
+\end{abstract}
+
+
+\maketitle
+In portfolio design, a very common strategy is quantitative value investing. This strategy consists of designing some objective measure, ranking stocks based on this measure, and investing into the top ranked companies. The measure is derived from expert knowledge about how markets function, data, or some combination of the two. Portfolio design, in general, has been a field slow to adopt machine learning techniques, generally forgoing the data driven aspect of constructing these measures in exchange for more traditional financial measures. Examples of these measures include Trailing Twelve Month Returns (TTM Returns) and Earnings Before Interest and Taxes/Enterprise Value (EBIT/EV). These measures are often called value factors, as in the Fama-French value factor model. A clear drawback of this method is that there are countless different value factors an analyst could choose. For instance, what if it's Trailing Eighteen Month Returns that actually beat the market as opposed to TTMs? In this manner, in their use as feature engineers, Neural Networks serve as an obvious next step to improve this strategy.
+
+In traditional computer vision learning techniques, like boosted decision trees for facial recognition \cite{ada-boost}, the main hurdle was always the development of better methods to extract relevant features. With the advent of convolutional neural networks, able to extract relevant features automatically, computer vision was effectively revolutionized \cite{alexnet}. Why can't Neural Networks do the same for factor engineering? Humans are bias-prone. When we pick factors, we are unintentionally choosing factors that are not statistically clean. Analysts have subconscious reasons for selecting factors, no matter how hard they can try to avoid these biases. For instance, if an analyst truly believes in a company, they might unintentionally choose factors that bias them towards that company, but will ultimately lead to lower returns overall. For reasons like this, Neural Networks have the capacity to revolutionize forecasting in the same way as they did image recognition. 
+
+Financial fundamental data is in the form of time series data, and thus admits a very natural sequence structure that can be leveraged by Recurrent Neural Networks (RNNs). \cite{euclidean} investigated the use of Long Short Term Memory (LSTM) RNNS in forecasting fundamental data. These are RNN architectures where there are two streams of data passing through the recurrent neural network, the long term and short term streams. In this paper, we will investigate the use of Temporal Fusion Transformers (TFTs), as proposed by \cite{tft}. 
+
+
+
+
+\section{Data and Data Pre-Processing}
+\subsection{Raw Data}
+\subsection{Pre-Processing}
+\subsection{Transformation and Deseasonalization}
+\section{Model Framework}
+\subsection{Temporal Fusion Transformer}
+\subsection{Quantile to Ordinal Conversion}
+\section{Experimental Results}
+\section{Conclusions}
+
+\bibliographystyle{aea}
+\bibliography{references}
+
+% The appendix command is issued once, prior to all appendices, if any.
+\appendix
+
+\section{Mathematical Appendix}
+
+\end{document}
+
