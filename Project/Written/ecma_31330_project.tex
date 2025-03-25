@@ -137,8 +137,15 @@ Finally, following the reccommendation of \cite{seasonalization}, we will apply 
 We will then feed the original features in alongside the seasonalized features.
 Additionally, we will need to apply some sort of normalization to the data before the seasonalization. 
 These two will be discussed in the next section.
+
 We will end up with five categories of features: 
-Momentum features, Valuation Features, Fundamental Features, Missing Value Features, and Seasonal Features.
+\begin{itemize}
+    \item Momentum Features
+    \item Valuation Features
+    \item Fundamental Features
+    \item Missing Value Features
+    \item Seasonal Features
+\end{itemize}
 \subsubsection{Momentum Features}
 Since it's quite likely that recent stock price changes will be indicative of future stock price changes,
 we will include some momentum features, in order to make it easier for the Neural Network to find these patterns.
@@ -151,7 +158,7 @@ These are common value factors used in the Fama-French model.
 They are defined as follows:
 \begin{itemize}
     \item 
-        bkmktq: Book to Market.
+        bkmktq: Book to Market
         $$\text{Book to Market } = \frac{\text{Shareholder Equity}}{\text{Closing Price } \cdot \text{ Common Shares Outstanding}} $$
     \item
         evq: Enterprise Value
@@ -161,18 +168,106 @@ They are defined as follows:
         &- \text{ Cash and Short Term Investments}
         \end{align*}
     \item
-        eyq: Earnings Yield:
+        eyq: Earnings Yield
         $$
         \text{Earnings Yield} = \frac{\text{Operating Income After Depreciation}}{\text{Enterprise Value}}
         $$
 \end{itemize}
+Additionally, we provide percentile rankings alongside these features.
+\subsubsection{Fundamental Features}
+We include all of the fundamental features we selected in Table \ref{tab:source_fields}, but we first have to transform them.
+\subsubsection{NaN Policy}
+We follow the NaN policy given by \cite{nanpolicy}. For each feature, we add an additional NaN indicator feature that is 1 if the feature is NaN, and 0 otherwise.
+We then fill the NaNs with the previous value. If there is no previous value, we fill it with 0.
+We obviously, do not normalize these features.
+The advantage of this policy is that as opposed to mean imputation or some other form of imputation is that it 
+allows the Neural Network to learn why data is missing. For instance, if a company is missing financial reports,
+that's a pretty good indicator that company is in trouble. Providing the Neural Network with these features
+will hopefully let it learn these patterns.
 \subsection{Transformation and Deseasonalization}
+For the transformation, we follow the reccommendation given by \cite{meanscale} and apply a meanscale transformation, followed by a log-scale transformation.
+However, before we do this, \cite{meanscale} assumes that all the data is strictly positive. 
+This is not the case for our data, but we can simply add a constant to all the data to make it positive.
+This will not change any of the predictions on the data, but will allow us to apply the log-scale transformation.
+To summarize, if $C$ is the minimum value in our entire data set, we first shift all the data by $|C|$. 
+Letting $X_{i}$ be a company, and $X_{i,t}$ be the vector of features at time $t$, we apply the following transformation:
+\[
+X_{i,t} \mapsto X_{i,t} + |C|
+\]
+Now, we apply the meanscale transformation:
+\[
+X_{i,t} \mapsto \frac{X_{i,t}}{1 + \frac{1}{t}\sum_{s=1}^{t} X_{i,s}}
+\]
+Finally, we apply the log-scale transformation:
+\[
+X_{i,t} \mapsto \log(X_{i,t} + 1)
+\]
+We do not apply the transformation to the NaN indicator features, nor the percentile ranking features.
+We apply the transformation to the momentum, valuation, and fundamental features.
+
+We then apply a seasonalization algorithm to the transformed features, to obtain seasonal features. 
+I.e. we apply the following transformation:
+\[
+X_i = \hat{S}_i + \hat{T}_i + \hat{R}_i
+\]
+Where $\hat{S}_i$ is the seasonal component, $\hat{T}_i$ is the trend component, and $\hat{R}_i$ is the residual component.
+We feed $\hat{S}_i$ into the model, alongside the original features.
+We use the python implementation of STL provided by statsmodels.
+We apply the seasonalization to the momentum, valuation, and fundamental features. 
+We do indeed apply the seasonalization to the percentile ranking features, since there might be seasonality in the rankings.
+We apply the seasonalization because we believe that the deseasonalized trends will be a helpful feature for the Neural Network to learn.
+
+In total we will end up with approximately 130 features.
 \section{Model Framework}
-\subsection{Temporal Fusion Transformer}
-\subsection{Quantile to Ordinal Conversion}
+We use the Temporal Fusion Transformer (TFT) model, as proposed by \cite{tft}. 
+We use a fixed window size of 5 years, or 20 quarters. We output 20 quarters into the future. 
+We additionally add an extra year gap between the input and output in order to avoid seasonal effects.
+We split our data into a training set, a validation set for hyperparameter tuning, and a test set.
+The split is as follows:
+\begin{enumerate}
+    \item Training set: 1970-2001,12,31
+    \item Validation set: 2002,1,1-2009,12,31
+    \item Test set: 2010,1,1-2025,12,31
+\end{enumerate}
+We use the PyTorch Forecasting library to implement the model.
+We fix the the number of LSTM layers to 2 and the loss function is the logistic loss function.
+We optimize the following hyperparameters:
+\begin{itemize}
+    \item Hidden Size
+    \item Attention Head Size
+    \item Hidden Continuous Size
+    \item Learning Rate
+    \item Reduction On Plateau Patience
+    \item Gradient Clip Value
+    \item Dropout Rate
+\end{itemize}
 \section{Experimental Results}
 \section{Conclusions}
+One of the main issues with this model is that we face a remarkable lack of data.
+Despite the fact that we have nearly a million observations, this number is not actually how many samples we get to train on.
+A single observation is actually a contiguous 5 year time series for a single company. 
+This reduces the number of training samples to around 57,320, which is barely enough to train a deep neural network.
+The total number of actual parameters in our model is about 259,000. 
+Although it is very common to train models with far more parameters than samples, the lack of data is still a major issue.
+One interesting way to address this is to use a generative model combined with transfer learning.
+We could train a generative model to generate synthetic data and then use this synthetic data to train a model, which we further finetune with our real data.
+The motivation is that we have certain expert knowledge about how markets should function, and we can use this to generate synthetic data.
+Of course the synthetic data will be mostly trash, but it will still force the model to learn something about the data.
+This approach has been explored by \cite{dataAug} with impressive results on LSTMs. 
+They did not test this approach on the TFT model, which generally performs better than LSTM models in forecasting tasks.
+This is a very interesting direction for future research.
 
+Another limitation of this model is not just the lack of data, but the lack of features. 
+Fundamentals data is fantastic for forecasting, but it is not enough. 
+There are many other features that would help capture the true value of a stock.
+One interesting feature that could be added is the sentiment of the market. 
+There have been many studies that explore deep learning for natural language processing of financial news.
+\cite{sentimentAnalysis} is a good survey of the literature.
+Adding these features could be the step needed to identify all the value traps. 
+In fact, this might help make forecasting more tractable, as the sentiment of the market is a very important feature in forecasting.
+
+Despite this, we see that the TFT model is able to predict value traps with a high degree of accuracy. 
+It does better than the LSTM model presented by \cite{euclidean}. 
 \bibliographystyle{aea}
 \bibliography{references}
 
