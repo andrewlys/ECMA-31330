@@ -2,7 +2,7 @@
 \usepackage{amsmath}
 \usepackage{graphicx}
 \usepackage{harvard}
-\draftSpacing{1.5}
+\usepackage{hyperref}
 
 \begin{document}
 
@@ -50,14 +50,122 @@ structure that can be leveraged by Recurrent Neural Networks (RNNs). \cite{eucli
 Long Short Term Memory (LSTM) RNNS in forecasting fundamental data. These are RNN architectures where there are 
 two streams of data passing through the recurrent neural network, the long term and short term streams. In this 
 paper, we will investigate the use of Temporal Fusion Transformers (TFTs), as proposed by \cite{tft}. We use 
-the implementation provided by PyTorch Forecasting. 
+the implementation provided by PyTorch Forecasting. TFTs are a novel architecture developed by Google in collaboration with the University of Oxford. 
+They leverage the recent success of Transformers in natural language processing, and the natural sequence
+structure of time series data. \cite{tft} found promising results in forecasting, so we will investigate their
+ability to predict stock behavior.
 
-TFTs are a novel architecture developed by Google in collaboration with the University of Oxford. They lev
+So far, we have been careful to avoid forecasting. This is because forecasting is very difficult. 
+\cite{euclidean} found that there is far too much noise to be able to accurately generate forecasts that meaningfully 
+outperform linear models. For this reason, we focus on a far more tractable problem. We will attempt to predict
+certain qualitative features of stock behavior. The main feature we will focus on is whether a stock is a value trap.
 
+In the quantitative value investing strategy, we seek to select stocks that are, in some sense, undervalued.
+We approximate this true value of a stock by variuous value factors. 
+The value factors we select maybe misleading, causing us to misunderstand the true value of a stock.
+In this way, we may select stocks that are not actually undervalued, but are instead value traps.
+A stock may perform very well on our value factors, but there may be some aspect we are missing in our analysis
+that will cause the stock to perform poorly in the future. For instance, a stock may have a high EBIT/EV ratio,
+but if the company is about to go bankrupt, this ratio will not be very useful. 
 
+This problem is significantly more tractable than forecasting, and is in fact, very valuable. \cite{euclidean}
+have shown that identifying value traps can result in a 3.5\% increase in annualized returns (See Figure \ref{fig:clairvoyant}).
+
+\begin{figure}[ht] 
+    \includegraphics[scale = 0.3]{value_trap_clairvoyant_2.png}
+    \caption{Portfolio performance as an increasing number of value traps are removed.}
+    \label{fig:clairvoyant}
+\end{figure}
+
+In this paper, we will investigate the ability of TFTs to predict whether a stock is a value trap.
+The structure of the paper is as follows: in section 2, we will discuss the data and the pre-processing; 
+in section 3, we will discuss the model framework; In section 4, we will present the experimental setup
+and the results; and in section 5, we will conclude.
 \section{Data and Data Pre-Processing}
 \subsection{Raw Data}
+The data we use is from the Wharton Research Data Services (WRDS) database.
+We use the Compustat North America database, which contains fundamental data on companies.
+As undergraduate students, we are able to access this data through the University of Chicago's library,
+although, without a PI, we are only able to get a day pass.
+
+We focused on the time frame 1970-2025, since before 1970, fundamentals reporting was not as standardized.
+Additionally, we only considered companies that are located in the United States. We filtered for companies
+only traded on either the NYSE, NASDAQ, or AMEX. We also filtered out financial services companies. 
+The motivation for this is that the fundamentals reporting of financial services companies represent
+very different things than for industrial companies. Although this reasoning may be disputed, 
+\href{https://alphaarchitect.com/why-exclude-financial-firms-from-quantitative-studies/}{this is considered
+a common practice}. The data was taken in quarterly intervals, since this is how often companies report
+fundamental data. This represents a total of approximately 12,000 companies, and a total of 876,347 observations.
+
+Following \cite{euclidean}, we selected the following source fields, as show in Table \ref{tab:source_fields}.
+
+\begin{table}[ht]
+    \centering
+    \begin{tabular}{|c|c|}
+        \hline
+        \textbf{Income Statement \& Other Items} & \textbf{Balance Sheet} \\
+        \hline
+        Sales (Revenue) & Cash \& Cash Equivalents \\
+        Cost of Goods Sold & Receivables \\
+        Sales, General, and Admin Expenses & Current Assets \\
+        Operating Income After Depreciation & Property Plant \& Equipment \\
+        Net-Income & Other Assets (Incl. Goodwill) \\
+        Capital Expenditures & Total Assets \\
+        Dividends & Debt in Current Liabilities \\
+        Common Shares Outstanding & Accounts Payable \\
+        Price per Share & Current Liabilities \\
+        & Long-Term Debt \\
+        & Other Liabilities \\
+        & Total Liabilities \\
+        & Minority Interest \\
+        & Preferred Stock \\
+        & Shareholders’ Equity \\
+        \hline
+    \end{tabular}
+    \caption{Selected Source Fields}
+    \label{tab:source_fields}
+\end{table}
 \subsection{Pre-Processing}
+There is a lot of pre-preprocessing that needs to be done before we can use this data in a model. 
+We cannot simply feed the raw data into the model. 
+For each company, there are very unique patterns in the raw data that the model will memorize.
+As a result, the model will not be able to learn. We need to apply some processing to the data to make sure
+this does not happen. Additionally, there are some other financial features that we know we want to include.
+Since this data is fairly noisy, there are some NaNs that we need to deal with. 
+We will develop a NaN policy for dealing with missing data.
+Finally, following the reccommendation of \cite{seasonalization}, we will apply a seasonalization algorithm to these features.
+We will then feed the original features in alongside the seasonalized features.
+Additionally, we will need to apply some sort of normalization to the data before the seasonalization. 
+These two will be discussed in the next section.
+We will end up with five categories of features: 
+Momentum features, Valuation Features, Fundamental Features, Missing Value Features, and Seasonal Features.
+\subsubsection{Momentum Features}
+Since it's quite likely that recent stock price changes will be indicative of future stock price changes,
+we will include some momentum features, in order to make it easier for the Neural Network to find these patterns.
+We will include 3, 9, 12, and 18 month percent changes in stock price.
+Additionally, we will provide the percentile rankings amongst stocks traded during that quarter of these features.
+These features will hopefully allow the Neural Network to find these patterns easier, and make use of them.
+\subsubsection{Valuation Features}
+We will include the following valuation features: Book to Market and Earnings Yield.
+These are common value factors used in the Fama-French model.
+They are defined as follows:
+\begin{itemize}
+    \item 
+        bkmktq: Book to Market.
+        $$\text{Book to Market } = \frac{\text{Shareholder Equity}}{\text{Closing Price } \cdot \text{ Common Shares Outstanding}} $$
+    \item
+        evq: Enterprise Value
+        \begin{align*}
+        \text{Enterprise Value} &= \text{Closing Price } \cdot \text{ Common Shares Outstanding}\\
+        &+ \text{ Long Term Debt } + \text{ Debt in Current Liabilities}\\
+        &- \text{ Cash and Short Term Investments}
+        \end{align*}
+    \item
+        eyq: Earnings Yield:
+        $$
+        \text{Earnings Yield} = \frac{\text{Operating Income After Depreciation}}{\text{Enterprise Value}}
+        $$
+\end{itemize}
 \subsection{Transformation and Deseasonalization}
 \section{Model Framework}
 \subsection{Temporal Fusion Transformer}
