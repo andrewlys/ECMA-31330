@@ -16,7 +16,11 @@
 \Keywords{}
 
 \begin{abstract}
-Your abstract here.
+In this paper we present a novel application of Temporal Fusion Transformers (TFTs) for predicting stock behavior in the context of quantitative value investing.
+Traditional methods rely on factor engineering which can miss out on important patterns and is vulnerable to cognitive biases.
+In order to address these issues, we use TFTs to automatically extract relevant features from financial data.
+Additionally, for a failure to meaningfully outperform linear models in stock price forecasting, we focus on a more tractable problem: predicting whether a stock is a value trap.
+We find that TFTs are able to predict value traps with a high degree of accuracy, outperforming other methods.
 \end{abstract}
 
 
@@ -231,6 +235,15 @@ The split is as follows:
 \end{enumerate}
 We use the PyTorch Forecasting library to implement the model.
 We fix the the number of LSTM layers to 2 and the loss function is the logistic loss function.
+We fix the following hyperparameters to decrease computational time:
+\begin{itemize}
+    \item Batch Size: 128
+    \item Number of Epochs: 20
+    \item Number of LSTM Layers: 2
+    \item Loss Function: Logistic Loss
+    \item Attention Head Size: 4
+    \item Gradient Clip Value: 0.1
+\end{itemize}
 We optimize the following hyperparameters:
 \begin{itemize}
     \item Hidden Size
@@ -242,12 +255,53 @@ We optimize the following hyperparameters:
     \item Dropout Rate
 \end{itemize}
 \section{Experimental Results}
+\href{https://github.com/andrewlys/ECMA-31330}{The code for this project is available on GitHub}. 
+We queried the WRDS database on 2025-03-01. We pre-processed the data as described in the previous section.
+We then optimized the hyperparameters using PyTorch Forecasting's built in hyperparameter optimization.
+We then trained the model on the training set, and evaluated the model against the test set.
+Here are the results of the hyperparameter optimization:
+\begin{figure}[ht!]
+    \includegraphics[scale = 0.3]{contour_plot.png}
+    \caption{Contour plot of the hyperparameter optimization.}
+    \label{fig:contour}
+\end{figure}
+\begin{figure}[ht!]
+    \includegraphics[scale = 0.3]{parameter_importances.png}
+    \caption{Parameter importances.}
+    \label{fig:importances}
+\end{figure}
+\begin{figure}[ht!]
+    \includegraphics[scale = 0.3]{optimization_history.png}
+    \caption{Optimization history.}
+    \label{fig:history}
+\end{figure}
+\begin{figure}[ht!]
+    \includegraphics[scale = 0.3]{empirical_distribution_function.png}
+    \caption{Empirical distribution function of the hyperparameters.}
+    \label{fig:edf}
+\end{figure}
+The results are as follows:
+\begin{figure}[ht!]
+    \includegraphics[scale = 0.3]{results.png}
+    \caption{Results of the model.}
+    \label{fig:results}
+\end{figure}
+\begin{figure}[ht!]
+    \includegraphics[scale = 0.3]{false_neg.png}
+    \caption{False negatives.}
+    \label{fig:false_neg}
+\end{figure}
+We end up with a false negative rate of 10\%. This is a very good result, as it means that we are able to identify 90\% of the value traps.
+We end up with a test error of 0.016335420637081404 \%, which isn't super meaningful, since we are mostly interested in identifying value traps.
+However, this is good reassurance that we are not producing very many false positives, i.e. misclassifying valuable stocks.
+This is a better result than \href{https://web.archive.org/web/20230922124736/https://www.euclidean.com/value-traps-and-deep-learning}{Euclidean managed to achieve, who got a 72\% accuracy.}
+We plot some of the results in Figure \ref{fig:results} and \ref{fig:false_neg}.
 \section{Conclusions}
 One of the main issues with this model is that we face a remarkable lack of data.
 Despite the fact that we have nearly a million observations, this number is not actually how many samples we get to train on.
 A single observation is actually a contiguous 5 year time series for a single company. 
 This reduces the number of training samples to around 57,320, which is barely enough to train a deep neural network.
-The total number of actual parameters in our model is about 259,000. 
+The total number of actual parameters in our model is about 1.2 million. 
 Although it is very common to train models with far more parameters than samples, the lack of data is still a major issue.
 One interesting way to address this is to use a generative model combined with transfer learning.
 We could train a generative model to generate synthetic data and then use this synthetic data to train a model, which we further finetune with our real data.
